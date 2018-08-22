@@ -1,19 +1,33 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"net/http"
 
 	"github.com/dsbell81/go-pgsql-api/datastore"
+	"github.com/dsbell81/go-pgsql-api/routers"
 	"github.com/dsbell81/go-pgsql-api/utils"
+	"github.com/urfave/negroni"
 )
 
 func main() {
-	fmt.Println("hello world")
 
-	fmt.Printf("my server is %s\n", utils.AppConfig.Server)
+	//initialize datastore connection
+	datastore.InitDb()
 
-	myDb, err := datastore.GetPgConnection()
-	if err != nil {
-		myDb.Close()
+	// Get the mux router object
+	router := routers.InitRoutes()
+
+	// Create a negroni instance
+	n := negroni.Classic()
+	n.UseHandler(router)
+
+	server := &http.Server{
+		Addr:    utils.AppConfig.Server,
+		Handler: n,
 	}
+
+	log.Println("Listening...")
+	server.ListenAndServe()
+
 }
