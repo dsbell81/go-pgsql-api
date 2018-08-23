@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -98,5 +99,68 @@ func Register(w http.ResponseWriter, r *http.Request) {
 // Login authenticates the HTTP request with username and apssword
 // Handler for HTTP Post - "/users/login"
 func Login(w http.ResponseWriter, r *http.Request) {
-	//coming soon
+	var userLoginResource LoginResource
+	var token string
+	// Decode the incoming Login json
+	err := json.NewDecoder(r.Body).Decode(&userLoginResource)
+	if err != nil {
+		utils.DisplayAppError(w, err,
+			"Invalid Login data",
+			500,
+		)
+		return
+	}
+
+	userLoginModel := userLoginResource.Data
+	loginUser := models.User{
+		Email:    userLoginModel.Email,
+		Password: userLoginModel.Password,
+	}
+
+	// Authenticate the login user
+	user, err := datastore.Login(&loginUser)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.DisplayAppError(w, err,
+				"Invalid login credentials",
+				401,
+			)
+		} else {
+			utils.DisplayAppError(w, err,
+				"An unexpected error has occured",
+				500,
+			)
+		}
+		return
+	}
+
+	// Generate JWT token
+	//hard code role for now
+	token, err = utils.GenerateJWT(user.Email, "member")
+	if err != nil {
+		utils.DisplayAppError(w, err,
+			"Eror generating access token",
+			500,
+		)
+		return
+	}
+
+	// Clean-up the response JSON
+	user.Password = ""
+	authUser := AuthUserModel{
+		User:  user,
+		Token: token,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	j, err := json.Marshal(AuthUserResource{Data: authUser})
+	if err != nil {
+		utils.DisplayAppError(w, err,
+			"An unexpected error has occurred",
+			500,
+		)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(j)
 }
